@@ -347,6 +347,19 @@ Examples of use:
             default=False,
             help='Use arrow keys to sort the process list instead of the SHIFT+key combinations',
         )
+        parser.add_argument(
+            '--vim-bindings',
+            action='store_true',
+            default=True,
+            dest='vim_bindings',
+            help='Use vim-style key bindings (j/k for navigation, K for kill) [default: enabled]',
+        )
+        parser.add_argument(
+            '--no-vim-bindings',
+            action='store_false',
+            dest='vim_bindings',
+            help='Disable vim-style key bindings',
+        )
         # Sort processes list
         parser.add_argument(
             '--sort-processes',

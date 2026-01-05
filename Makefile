@@ -324,6 +324,12 @@ run: ## Start Glances in console mode (also called standalone)
 run-debug: ## Start Glances in debug console mode (also called standalone)
 	$(UV_RUN) run python -m glances -C $(CONF) -d
 
+run-no-vim: ## Start Glances without vim-style key bindings (legacy mode)
+	$(UV_RUN) run python -m glances -C $(CONF) --no-vim-bindings
+
+run-no-vim-debug: ## Start Glances in debug mode without vim-style key bindings
+	$(UV_RUN) run python -m glances -C $(CONF) --no-vim-bindings -d
+
 run-local-conf: ## Start Glances in console mode with the system conf file
 	$(UV_RUN) run python -m glances
 

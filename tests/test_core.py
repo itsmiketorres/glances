@@ -241,20 +241,28 @@ class TestGlances(unittest.TestCase):
         for plugin in plugins_to_check:
             self.assertTrue(plugin in plugins_list)
 
-    def test_002_system(self):
+    def test_002_vim_bindings_default(self):
+        """Check vim_bindings default value."""
+        print('INFO: [TEST_002] Check vim_bindings default value')
+        # By default, vim_bindings should be True (enabled by default)
+        vim_bindings_value = getattr(test_args, 'vim_bindings', None)
+        # Should be True by default
+        self.assertTrue(vim_bindings_value, msg='vim_bindings should be True by default')
+
+    def test_003_system(self):
         """Check SYSTEM plugin."""
         stats_to_check = ['hostname', 'os_name']
-        print('INFO: [TEST_002] Check SYSTEM stats: {}'.format(', '.join(stats_to_check)))
+        print('INFO: [TEST_003] Check SYSTEM stats: {}'.format(', '.join(stats_to_check)))
         stats_grab = stats.get_plugin('system').get_raw()
         for stat in stats_to_check:
             # Check that the key exist
             self.assertTrue(stat in stats_grab, msg=f'Cannot find key: {stat}')
         print(f'INFO: SYSTEM stats: {stats_grab}')
 
-    def test_003_cpu(self):
+    def test_004_cpu(self):
         """Check CPU plugin."""
         stats_to_check = ['system', 'user', 'idle']
-        print('INFO: [TEST_003] Check mandatory CPU stats: {}'.format(', '.join(stats_to_check)))
+        print('INFO: [TEST_004] Check mandatory CPU stats: {}'.format(', '.join(stats_to_check)))
         stats_grab = stats.get_plugin('cpu').get_raw()
         for stat in stats_to_check:
             # Check that the key exist
@@ -265,10 +273,10 @@ class TestGlances(unittest.TestCase):
         print(f'INFO: CPU stats: {stats_grab}')
 
     @unittest.skipIf(WINDOWS, "Load average not available on Windows")
-    def test_004_load(self):
+    def test_005_load(self):
         """Check LOAD plugin."""
         stats_to_check = ['cpucore', 'min1', 'min5', 'min15']
-        print('INFO: [TEST_004] Check LOAD stats: {}'.format(', '.join(stats_to_check)))
+        print('INFO: [TEST_005] Check LOAD stats: {}'.format(', '.join(stats_to_check)))
         stats_grab = stats.get_plugin('load').get_raw()
         for stat in stats_to_check:
             # Check that the key exist
@@ -277,7 +285,7 @@ class TestGlances(unittest.TestCase):
             self.assertGreaterEqual(stats_grab[stat], 0)
         print(f'INFO: LOAD stats: {stats_grab}')
 
-    def test_005_mem(self):
+    def test_006_mem(self):
         """Check MEM plugin."""
         plugin_name = 'mem'
         stats_to_check = ['available', 'used', 'free', 'total']
@@ -290,7 +298,7 @@ class TestGlances(unittest.TestCase):
             self.assertGreaterEqual(stats_grab[stat], 0)
         print(f'INFO: MEM stats: {stats_grab}')
 
-    def test_006_memswap(self):
+    def test_007_memswap(self):
         """Check MEMSWAP plugin."""
         stats_to_check = ['used', 'free', 'total']
         print('INFO: [TEST_006] Check MEMSWAP stats: {}'.format(', '.join(stats_to_check)))
@@ -302,21 +310,21 @@ class TestGlances(unittest.TestCase):
             self.assertGreaterEqual(stats_grab[stat], 0)
         print(f'INFO: MEMSWAP stats: {stats_grab}')
 
-    def test_007_network(self):
+    def test_008_network(self):
         """Check NETWORK plugin."""
         print('INFO: [TEST_007] Check NETWORK stats')
         stats_grab = stats.get_plugin('network').get_raw()
         self.assertTrue(isinstance(stats_grab, list), msg='Network stats is not a list')
         print(f'INFO: NETWORK stats: {stats_grab}')
 
-    def test_008_diskio(self):
+    def test_009_diskio(self):
         """Check DISKIO plugin."""
         print('INFO: [TEST_008] Check DISKIO stats')
         stats_grab = stats.get_plugin('diskio').get_raw()
         self.assertTrue(isinstance(stats_grab, list), msg='DiskIO stats is not a list')
         print(f'INFO: diskio stats: {stats_grab}')
 
-    def test_009_fs(self):
+    def test_010_fs(self):
         """Check File System plugin."""
         # stats_to_check = [ ]
         print('INFO: [TEST_009] Check FS stats')
@@ -324,7 +332,7 @@ class TestGlances(unittest.TestCase):
         self.assertTrue(isinstance(stats_grab, list), msg='FileSystem stats is not a list')
         print(f'INFO: FS stats: {stats_grab}')
 
-    def test_010_processes(self):
+    def test_011_processes(self):
         """Check Process plugin."""
         # stats_to_check = [ ]
         print('INFO: [TEST_010] Check PROCESS stats')
@@ -338,7 +346,7 @@ class TestGlances(unittest.TestCase):
         # Check if number of processes in the list equal counter
         # self.assertEqual(total, len(stats_grab))
 
-    def test_011_folders(self):
+    def test_012_folders(self):
         """Check File System plugin."""
         # stats_to_check = [ ]
         print('INFO: [TEST_011] Check FOLDER stats')
@@ -346,7 +354,7 @@ class TestGlances(unittest.TestCase):
         self.assertTrue(isinstance(stats_grab, list), msg='Folders stats is not a list')
         print(f'INFO: Folders stats: {stats_grab}')
 
-    def test_012_ip(self):
+    def test_013_ip(self):
         """Check IP plugin."""
         print('INFO: [TEST_012] Check IP stats')
         stats_grab = stats.get_plugin('ip').get_raw()
@@ -354,7 +362,7 @@ class TestGlances(unittest.TestCase):
         print(f'INFO: IP stats: {stats_grab}')
 
     @unittest.skipIf(not LINUX, "IRQs available only on Linux")
-    def test_013_irq(self):
+    def test_014_irq(self):
         """Check IRQ plugin."""
         print('INFO: [TEST_013] Check IRQ stats')
         stats_grab = stats.get_plugin('irq').get_raw()
@@ -362,14 +370,14 @@ class TestGlances(unittest.TestCase):
         print(f'INFO: IRQ stats: {stats_grab}')
 
     @unittest.skipIf(not LINUX, "GPU available only on Linux")
-    def test_014_gpu(self):
+    def test_015_gpu(self):
         """Check GPU plugin."""
         print('INFO: [TEST_014] Check GPU stats')
         stats_grab = stats.get_plugin('gpu').get_raw()
         self.assertTrue(isinstance(stats_grab, list), msg='GPU stats is not a list')
         print(f'INFO: GPU stats: {stats_grab}')
 
-    def test_015_sorted_stats(self):
+    def test_016_sorted_stats(self):
         """Check sorted stats method."""
         print('INFO: [TEST_015] Check sorted stats method')
         aliases = {
@@ -397,7 +405,7 @@ class TestGlances(unittest.TestCase):
         self.assertEqual(sorted_stats[3]["key"], "key4")
         self.assertEqual(sorted_stats[4]["key"], "key21")
 
-    def test_016_subsample(self):
+    def test_017_subsample(self):
         """Test subsampling function."""
         print('INFO: [TEST_016] Subsampling')
         for l_test in [
@@ -411,7 +419,7 @@ class TestGlances(unittest.TestCase):
             l_subsample = subsample(l_test[0], l_test[1])
             self.assertLessEqual(len(l_subsample), l_test[1])
 
-    def test_017_hddsmart(self):
+    def test_018_hddsmart(self):
         """Check hard disk SMART data plugin."""
         try:
             from glances.globals import is_admin
@@ -434,7 +442,7 @@ class TestGlances(unittest.TestCase):
 
         print(f'INFO: SMART stats: {stats_grab}')
 
-    def test_017_programs(self):
+    def test_019_programs(self):
         """Check Programs plugin."""
         # stats_to_check = [ ]
         print('INFO: [TEST_022] Check PROGRAMS stats')
@@ -444,7 +452,7 @@ class TestGlances(unittest.TestCase):
             self.assertTrue(isinstance(stats_grab[0], dict), msg='Programs stats is not a list of dict')
             self.assertTrue('nprocs' in stats_grab[0], msg='No nprocs')
 
-    def test_018_string_value_to_float(self):
+    def test_020_string_value_to_float(self):
         """Check string_value_to_float function"""
         print('INFO: [TEST_018] Check string_value_to_float function')
         self.assertEqual(string_value_to_float('32kB'), 32000.0)
@@ -454,7 +462,7 @@ class TestGlances(unittest.TestCase):
         self.assertEqual(string_value_to_float('12'), 12)
         self.assertEqual(string_value_to_float('--'), None)
 
-    def test_019_events(self):
+    def test_021_events(self):
         """Test events class"""
         print('INFO: [TEST_019] Test events')
         # Init events
@@ -505,7 +513,7 @@ class TestGlances(unittest.TestCase):
         events.clean()
         self.assertEqual(len(events.get()), 1)
 
-    def test_020_filter(self):
+    def test_022_filter(self):
         """Test filter classes"""
         print('INFO: [TEST_020] Test filter')
         gf = GlancesFilter()
@@ -529,7 +537,7 @@ class TestGlances(unittest.TestCase):
         self.assertTrue(gfl.is_filtered({'name': 'snake is in the place', 'username': 'nicolargo'}))
         self.assertFalse(gfl.is_filtered({'name': 'snake is in the place', 'username': 'notme'}))
 
-    def test_021_pretty_date(self):
+    def test_023_pretty_date(self):
         """Test pretty_date"""
         print('INFO: [TEST_021] pretty_date')
         self.assertEqual(pretty_date(datetime(2024, 1, 1, 12, 0), datetime(2024, 1, 1, 12, 0)), 'just now')
@@ -544,7 +552,7 @@ class TestGlances(unittest.TestCase):
         self.assertEqual(pretty_date(datetime(2023, 1, 1, 0, 0), datetime(2024, 1, 1, 12, 0)), 'an year')
         self.assertEqual(pretty_date(datetime(2020, 1, 1, 0, 0), datetime(2024, 1, 1, 12, 0)), '4 years')
 
-    def test_022_plugin_dag(self):
+    def test_024_plugin_dag(self):
         """Test Plugin DAG"""
         print('INFO: [TEST_022] Plugins DAG')
         self.assertEqual(get_plugin_dependencies('amps'), ['amps', 'alert'])
@@ -555,7 +563,7 @@ class TestGlances(unittest.TestCase):
         self.assertEqual(get_plugin_dependencies('quicklook'), ['quicklook', 'fs', 'core', 'load', 'alert'])
         self.assertEqual(get_plugin_dependencies('vms'), ['vms', 'processcount', 'alert'])
 
-    def test_023_get_alert(self):
+    def test_025_get_alert(self):
         """Test get_alert function"""
         print('INFO: [TEST_023] get_alert')
         self.assertEqual(stats.get_plugin('cpu').get_alert(10, minimum=0, maximum=100, header='total'), 'OK_LOG')
@@ -563,7 +571,7 @@ class TestGlances(unittest.TestCase):
         self.assertEqual(stats.get_plugin('cpu').get_alert(75, minimum=0, maximum=100, header='total'), 'WARNING_LOG')
         self.assertEqual(stats.get_plugin('cpu').get_alert(85, minimum=0, maximum=100, header='total'), 'CRITICAL_LOG')
 
-    def test_024_split_esc(self):
+    def test_026_split_esc(self):
         """Test split_esc function"""
         print('INFO: [TEST_024] split_esc')
         self.assertEqual(split_esc(r''), [])

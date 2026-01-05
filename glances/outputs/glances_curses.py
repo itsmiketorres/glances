@@ -38,6 +38,9 @@ class _GlancesCurses:
     Note: It is a private class, use GlancesCursesClient or GlancesCursesBrowser.
     """
 
+    # Hotkeys configuration
+    # Vim-style navigation keys (j/k/h/l) are reserved for cursor movement
+    # Kill process is always 'K' (capital), programs toggle is always 'J' (capital)
     _hotkeys = {
         '\n': {'handler': '_handle_enter'},
         '0': {'switch': 'disable_irix'},
@@ -62,18 +65,21 @@ class _GlancesCurses:
         'F': {'switch': 'fs_free_space'},
         'g': {'switch': 'generate_graph'},
         'G': {'switch': 'disable_gpu'},
-        'h': {'switch': 'help_tag'},
+        # 'h' > Reserved for vim left navigation (help moved to H)
+        'H': {'switch': 'help_tag'},
         'i': {'sort_key': 'io_counters'},
         'I': {'switch': 'disable_ip'},
-        'j': {'switch': 'programs'},
-        # 'k' > Kill selected process
-        'K': {'switch': 'disable_connections'},
-        'l': {'switch': 'disable_alert'},
+        # 'j' > Reserved for vim down navigation
+        'J': {'switch': 'programs'},
+        # 'k' > Reserved for vim up navigation
+        # 'K' > Kill process (handled in catch_other_actions)
+        # 'l' > Reserved for vim right navigation (alert moved to O)
         'L': {'handler': '_handle_diskio_latency'},
         'm': {'sort_key': 'memory_percent'},
         'M': {'switch': 'reset_minmax_tag'},
         'n': {'switch': 'disable_network'},
         'N': {'switch': 'disable_now'},
+        'O': {'switch': 'disable_alert'},
         'p': {'sort_key': 'name'},
         'P': {'switch': 'disable_ports'},
         # 'q' or ESCAPE > Quit
@@ -90,6 +96,7 @@ class _GlancesCurses:
         'w': {'handler': '_handle_clean_logs'},
         'W': {'switch': 'disable_wifi'},
         'x': {'handler': '_handle_clean_critical_logs'},
+        'Y': {'switch': 'disable_connections'},
         'z': {'handler': '_handle_disable_process'},
         '+': {'handler': '_handle_increase_nice'},
         '-': {'handler': '_handle_decrease_nice'},
@@ -216,6 +223,11 @@ class _GlancesCurses:
             self._left_sidebar = config.get_list_value('outputs', 'left_menu', default=self._left_sidebar)
             # Background color
             self.args.disable_bg = config.get_bool_value('outputs', 'disable_bg', default=self.args.disable_bg)
+            # Vim-style key bindings (j/k for navigation, K for kill)
+            # Default is True (enabled), can be disabled via config or --no-vim-bindings
+            self.args.vim_bindings = config.get_bool_value(
+                'outputs', 'vim_bindings', default=getattr(self.args, 'vim_bindings', True)
+            )
 
     def _right_sidebar(self):
         return [
@@ -267,22 +279,65 @@ class _GlancesCurses:
             action()
 
     def catch_other_actions_maybe_return_to_browser(self, return_to_browser):
-        {
-            self.pressedkey in {ord('e')} and not self.args.programs: self._handle_process_extended,
-            self.pressedkey in {ord('k')} and not self.args.disable_cursor: self._handle_kill_process,
-            self.pressedkey
-            in {curses.KEY_LEFT if self.args.arrow_keys_sort else curses.KEY_SLEFT}: self._handle_sort_left,
-            self.pressedkey
-            in {curses.KEY_RIGHT if self.args.arrow_keys_sort else curses.KEY_SRIGHT}: self._handle_sort_right,
-            self.pressedkey
-            in {curses.KEY_SLEFT if self.args.arrow_keys_sort else curses.KEY_LEFT}: self._handle_process_name_left,
-            self.pressedkey
-            in {curses.KEY_SRIGHT if self.args.arrow_keys_sort else curses.KEY_RIGHT}: self._handle_process_name_right,
-            self.pressedkey in {curses.KEY_UP, 65} and not self.args.disable_cursor: self._handle_cursor_up,
-            self.pressedkey in {curses.KEY_DOWN, 66} and not self.args.disable_cursor: self._handle_cursor_down,
-            self.pressedkey in {curses.KEY_F5, 18}: self._handle_refresh,
-            self.pressedkey in {ord('\x1b'), ord('q')}: functools.partial(self._handle_quit, return_to_browser),
-        }.get(True, lambda: None)()
+        """Handle special keys that require additional conditions or key codes > 255."""
+        vim_bindings = getattr(self.args, 'vim_bindings', True)
+        cursor_enabled = not self.args.disable_cursor
+
+        # Process extended stats (e key, only when not in programs mode)
+        if self.pressedkey == ord('e') and not self.args.programs:
+            self._handle_process_extended()
+            return
+
+        # Kill process: K (capital) - always available
+        if self.pressedkey == ord('K') and cursor_enabled:
+            self._handle_kill_process()
+            return
+
+        # Vim-style navigation keys (when vim_bindings enabled)
+        if vim_bindings and cursor_enabled:
+            if self.pressedkey == ord('j'):
+                self._handle_cursor_down()
+                return
+            if self.pressedkey == ord('k'):
+                self._handle_cursor_up()
+                return
+
+        # Arrow keys - sorting or process name scrolling (depends on arrow_keys_sort setting)
+        sort_left_key = curses.KEY_LEFT if self.args.arrow_keys_sort else curses.KEY_SLEFT
+        sort_right_key = curses.KEY_RIGHT if self.args.arrow_keys_sort else curses.KEY_SRIGHT
+        name_left_key = curses.KEY_SLEFT if self.args.arrow_keys_sort else curses.KEY_LEFT
+        name_right_key = curses.KEY_SRIGHT if self.args.arrow_keys_sort else curses.KEY_RIGHT
+
+        if self.pressedkey == sort_left_key:
+            self._handle_sort_left()
+            return
+        if self.pressedkey == sort_right_key:
+            self._handle_sort_right()
+            return
+        if self.pressedkey == name_left_key:
+            self._handle_process_name_left()
+            return
+        if self.pressedkey == name_right_key:
+            self._handle_process_name_right()
+            return
+
+        # Arrow keys for cursor navigation (always available)
+        if self.pressedkey in {curses.KEY_UP, 65} and cursor_enabled:
+            self._handle_cursor_up()
+            return
+        if self.pressedkey in {curses.KEY_DOWN, 66} and cursor_enabled:
+            self._handle_cursor_down()
+            return
+
+        # Refresh (F5 or Ctrl+R)
+        if self.pressedkey in {curses.KEY_F5, 18}:
+            self._handle_refresh()
+            return
+
+        # Quit (Escape or q)
+        if self.pressedkey in {ord('\x1b'), ord('q')}:
+            self._handle_quit(return_to_browser)
+            return
 
     def __catch_key(self, return_to_browser=False):
         # Catch the pressed key

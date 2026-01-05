@@ -3,6 +3,7 @@
 #
 # https://github.com/nicolargo/glances
 #
+# Uses uv for fast Python dependency management
 
 # Note: ENV is for future running containers. ARG for building your Docker image.
 
@@ -58,10 +59,11 @@ RUN apk add --no-cache \
   cmake
   # for cmake: Issue:  https://github.com/nicolargo/glances/issues/2735
 
-RUN python${PYTHON_VERSION} -m venv venv-build
-RUN /venv-build/bin/python${PYTHON_VERSION} -m pip install --upgrade pip
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-RUN python${PYTHON_VERSION} -m venv --without-pip venv
+# Create virtual environment using uv
+RUN uv venv /venv --python python${PYTHON_VERSION}
 
 COPY pyproject.toml docker-requirements.txt all-requirements.txt ./
 
@@ -70,7 +72,8 @@ COPY pyproject.toml docker-requirements.txt all-requirements.txt ./
 FROM build AS buildminimal
 ARG PYTHON_VERSION
 
-RUN /venv-build/bin/python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
+# Install minimal dependencies using uv
+RUN uv pip install --python /venv/bin/python${PYTHON_VERSION} \
     -r docker-requirements.txt
 
 ##############################################################################
@@ -83,7 +86,8 @@ ARG CASS_DRIVER_NO_CYTHON=1
 # See issue 2368
 ARG CARGO_NET_GIT_FETCH_WITH_CLI=true
 
-RUN /venv-build/bin/python${PYTHON_VERSION} -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
+# Install all dependencies using uv
+RUN uv pip install --python /venv/bin/python${PYTHON_VERSION} \
     -r all-requirements.txt
 
 ##############################################################################

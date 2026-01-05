@@ -35,6 +35,9 @@ repos:
       - id: check-github-workflows
         name: "🐙 github-actions · Validate gh workflow files"
         args: ["--verbose"]
+      - id: check-gitlab-ci
+        name: "🦊 gitlab-ci · Validate GitLab CI config"
+        args: ["--verbose"]
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1

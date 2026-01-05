@@ -3,6 +3,7 @@
 #
 # https://github.com/nicolargo/glances
 #
+# Uses uv for fast Python dependency management
 
 # WARNING: the versions should be set.
 # Ex: Python 3.12 for Ubuntu 24.04
@@ -44,8 +45,6 @@ RUN apt-get update \
 RUN apt-get install -y --no-install-recommends \
     python3-dev \
     python3-venv \
-    python3-pip \
-    python3-wheel \
     libzmq5 \
     musl-dev \
     build-essential
@@ -53,7 +52,11 @@ RUN apt-get install -y --no-install-recommends \
 RUN apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m venv --without-pip venv
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Create virtual environment using uv
+RUN uv venv /venv --python python${PYTHON_VERSION}
 
 COPY pyproject.toml docker-requirements.txt all-requirements.txt ./
 
@@ -62,7 +65,8 @@ COPY pyproject.toml docker-requirements.txt all-requirements.txt ./
 FROM build AS buildminimal
 ARG PYTHON_VERSION
 
-RUN python3 -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
+# Install minimal dependencies using uv
+RUN uv pip install --python /venv/bin/python${PYTHON_VERSION} \
     -r docker-requirements.txt
 
 ##############################################################################
@@ -70,7 +74,8 @@ RUN python3 -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-pack
 FROM build AS buildfull
 ARG PYTHON_VERSION
 
-RUN python3 -m pip install --target="/venv/lib/python${PYTHON_VERSION}/site-packages" \
+# Install all dependencies using uv
+RUN uv pip install --python /venv/bin/python${PYTHON_VERSION} \
     -r all-requirements.txt
 
 ##############################################################################
@@ -110,7 +115,7 @@ CMD ["/bin/sh", "-c", "/venv/bin/python${PYTHON_VERSION} -m glances ${GLANCES_OP
 FROM release AS minimal
 ARG PYTHON_VERSION
 
-COPY --from=buildMinimal /venv /venv
+COPY --from=buildminimal /venv /venv
 
 # USER glances
 

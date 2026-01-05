@@ -139,6 +139,9 @@ test-export-nats: ## Run interface tests with NATS
 
 test-exports: test-export-csv test-export-json test-export-influxdb-v1 test-export-influxdb-v3 test-export-timescaledb test-export-nats ## Tests all exports
 
+test-gitlab-ci: ## Run GitLab CI pipeline configuration tests
+	$(UV_RUN) run pytest tests/test_gitlab_ci.py -v
+
 # ===================================================================
 # Linters, profilers and cyber security
 # ===================================================================

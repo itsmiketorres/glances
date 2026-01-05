@@ -1,0 +1,262 @@
+# GitLab CI/CD Pipeline for Glances
+# Uses uv for fast Python dependency management
+#
+# Pipeline stages:
+# 1. quality - Code quality checks (linting, formatting)
+# 2. test - Unit tests across multiple Python versions
+# 3. build - Build Python packages
+# 4. docker - Build Docker images
+# 5. publish - Publish to PyPI (only on tags)
+
+stages:
+  - quality
+  - test
+  - build
+  - docker
+  - publish
+
+variables:
+  UV_VERSION: "0.5"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+
+# Cache uv downloads between jobs
+.uv_cache: &uv_cache
+  cache:
+    key: uv-cache-${CI_JOB_NAME}
+    paths:
+      - .cache/uv
+      - .cache/pip
+    policy: pull-push
+
+# Template for installing uv
+.install_uv: &install_uv
+  before_script:
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+    - uv --version
+
+# =============================================================================
+# Quality Stage
+# =============================================================================
+
+format:
+  stage: quality
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv run ruff format --check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+lint:
+  stage: quality
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv run ruff check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+# Security scanning with bandit
+security:
+  stage: quality
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv run bandit glances -r --exit-zero
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+
+# =============================================================================
+# Test Stage
+# =============================================================================
+
+.test_template: &test_template
+  stage: test
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv sync --dev
+    - uv run pytest tests/test_core.py -v
+  needs:
+    - format
+    - lint
+
+test:python3.10:
+  <<: *test_template
+  image: python:3.10-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+test:python3.11:
+  <<: *test_template
+  image: python:3.11-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+test:python3.12:
+  <<: *test_template
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+test:python3.13:
+  <<: *test_template
+  image: python:3.13-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Build Stage
+# =============================================================================
+
+build:package:
+  stage: build
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  needs:
+    - test:python3.10
+    - test:python3.11
+    - test:python3.12
+    - test:python3.13
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "master"
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Docker Stage
+# =============================================================================
+
+.docker_template: &docker_template
+  stage: docker
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  needs:
+    - build:package
+
+docker:alpine-minimal:
+  <<: *docker_template
+  script:
+    - docker build --target minimal -f docker-files/alpine.Dockerfile -t $CI_REGISTRY_IMAGE:alpine-minimal-$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:alpine-minimal-$CI_COMMIT_SHORT_SHA
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_TAG
+
+docker:alpine-full:
+  <<: *docker_template
+  script:
+    - docker build --target full -f docker-files/alpine.Dockerfile -t $CI_REGISTRY_IMAGE:alpine-full-$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:alpine-full-$CI_COMMIT_SHORT_SHA
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_TAG
+
+docker:ubuntu-minimal:
+  <<: *docker_template
+  script:
+    - docker build --target minimal -f docker-files/ubuntu.Dockerfile -t $CI_REGISTRY_IMAGE:ubuntu-minimal-$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:ubuntu-minimal-$CI_COMMIT_SHORT_SHA
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_TAG
+
+docker:ubuntu-full:
+  <<: *docker_template
+  script:
+    - docker build --target full -f docker-files/ubuntu.Dockerfile -t $CI_REGISTRY_IMAGE:ubuntu-full-$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:ubuntu-full-$CI_COMMIT_SHORT_SHA
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_TAG
+
+# Tag images on release
+docker:tag-release:
+  <<: *docker_template
+  script:
+    # Tag Alpine images
+    - docker pull $CI_REGISTRY_IMAGE:alpine-minimal-$CI_COMMIT_SHORT_SHA
+    - docker tag $CI_REGISTRY_IMAGE:alpine-minimal-$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
+    - docker tag $CI_REGISTRY_IMAGE:alpine-minimal-$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    - docker push $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    # Tag full images
+    - docker pull $CI_REGISTRY_IMAGE:alpine-full-$CI_COMMIT_SHORT_SHA
+    - docker tag $CI_REGISTRY_IMAGE:alpine-full-$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest-full
+    - docker tag $CI_REGISTRY_IMAGE:alpine-full-$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG-full
+    - docker push $CI_REGISTRY_IMAGE:latest-full
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG-full
+  needs:
+    - docker:alpine-minimal
+    - docker:alpine-full
+  rules:
+    - if: $CI_COMMIT_TAG
+
+# =============================================================================
+# Publish Stage
+# =============================================================================
+
+publish:testpypi:
+  stage: publish
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv publish --index-url https://test.pypi.org/legacy/ --token $TESTPYPI_TOKEN
+  needs:
+    - build:package
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  when: manual
+
+publish:pypi:
+  stage: publish
+  image: python:3.13-slim
+  <<: *uv_cache
+  <<: *install_uv
+  script:
+    - uv publish --token $PYPI_TOKEN
+  needs:
+    - build:package
+  rules:
+    - if: $CI_COMMIT_TAG
+  when: manual

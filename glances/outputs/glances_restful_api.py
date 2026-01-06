@@ -88,6 +88,9 @@ class GlancesUvicornServer(uvicorn.Server):
             thread.join()
 
 
+from glances.port_utils import DEFAULT_PORT_MAX_ATTEMPTS, find_available_port, is_port_available
+
+
 class GlancesRestfulApi:
     """This class manages the Restful API server."""
 
@@ -343,7 +346,30 @@ class GlancesRestfulApi:
         # Start Uvicorn server
         self._start_uvicorn()
 
+    def _update_bind_url(self):
+        """Update the bind URL based on current port configuration."""
+        self.bind_url = urljoin(f'{self.protocol}://{self.args.bind_address}:{self.args.port}/', self.url_prefix)
+
     def _start_uvicorn(self):
+        # Check if the requested port is available, if not find an available one
+        original_port = self.args.port
+        if not is_port_available(self.args.bind_address, self.args.port):
+            logger.warning(f'Port {self.args.port} is already in use, searching for an available port...')
+            available_port = find_available_port(self.args.bind_address, self.args.port + 1)
+            if available_port is None:
+                logger.critical(
+                    f'Error: Cannot start Glances Web server. '
+                    f'No available port found in range {self.args.port}-{self.args.port + DEFAULT_PORT_MAX_ATTEMPTS}'
+                )
+                sys.exit(1)
+
+            self.args.port = available_port
+            self._update_bind_url()
+
+            port_change_msg = f'Port {original_port} was in use. Glances Web server will use port {available_port} instead.'
+            logger.info(port_change_msg)
+            print(port_change_msg)
+
         # Run the Uvicorn Web server
         uvicorn_config = uvicorn.Config(
             self._app,
